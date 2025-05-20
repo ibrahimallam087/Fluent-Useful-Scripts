@@ -1,35 +1,43 @@
 clc;
-clear;
+clear all;
 close all;
 
-% --------- CONFIGURATION ---------
-materialFolders = {'R32a', 'R134a', 'R410a'};
-subfolders = {'E = 0.2', 'E = 0.4', 'E = 0.6', 'E = 0.8'};
-fileNames = {'Temp45.csv', 'Temp90.csv', 'VF45.csv', 'VF90.csv'};
-saveFolder = 'SavedFigures';
+% Top-level folder (current directory)
+baseFolder = pwd;
 
-% LaTeX plot style
+% List of refrigerant folders
+refrigerants = {'R32a', 'R134a', 'R410a'};
+
+% List of E-subfolders
+subfolders = {'E = 0.2', 'E = 0.4', 'E = 0.6', 'E = 0.8'};
+
+% File names to process
+fileNames = {'Temp45.csv', 'Temp90.csv', 'VF45.csv', 'VF90.csv'};
+
+% LaTeX formatting for plots
 set(0, 'DefaultTextInterpreter', 'latex');
 set(0, 'DefaultAxesTickLabelInterpreter', 'latex');
 set(0, 'DefaultLegendInterpreter', 'latex');
 
-% Colors & styles
-colors = lines(max(length(materialFolders), length(subfolders)));
-lineStyles = {'-', '--', ':', '-.', '-'};
-markers = {'o', 's', 'd', '^', 'none'};
+% Line/marker styles
+lineStyles = {'-', '--', ':', '-.'};
+markers = {'o', 's', 'd', '^'};
+
+% Folder to save figures
+saveFolder = 'SavedFigures';
+if ~exist(saveFolder, 'dir')
+    mkdir(saveFolder);
+end
 
 % Font sizes
 fontSizeMultiplier = 2;
 baseFontSize = 12;
 
-% Create folder if it doesn't exist
-if ~exist(saveFolder, 'dir')
-    mkdir(saveFolder);
-end
+% ---------- First: Plot per refrigerant (your current logic) ----------
+for r = 1:length(refrigerants)
+    refrigerant = refrigerants{r};
+    colors = lines(length(subfolders));
 
-% ========== PLOT 1: Per Material - Varying E ==========
-for m = 1:length(materialFolders)
-    material = materialFolders{m};
     for f = 1:length(fileNames)
         fig = figure('Position', [100, 100, 1600, 800]);
         ax1 = axes('Position', [0.08, 0.15, 0.6, 0.75]); hold(ax1, 'on');
@@ -37,14 +45,14 @@ for m = 1:length(materialFolders)
         legendEntries = {};
 
         for i = 1:length(subfolders)
-            folderPath = fullfile(material, subfolders{i});
+            folderPath = fullfile(baseFolder, refrigerant, subfolders{i});
             filePath = fullfile(folderPath, fileNames{f});
+
             if exist(filePath, 'file') == 2
                 data = read_data(filePath);
                 x = data(:, 1) / 100;
                 y = data(:, 2);
 
-                % Plot
                 plot(ax1, x, y, 'DisplayName', subfolders{i}, ...
                     'LineWidth', 2.5, 'Color', colors(i, :), ...
                     'LineStyle', lineStyles{i}, 'Marker', markers{i});
@@ -52,14 +60,14 @@ for m = 1:length(materialFolders)
                     'LineWidth', 2.5, 'Color', colors(i, :), ...
                     'LineStyle', lineStyles{i}, 'Marker', markers{i});
             else
-                warning('File not found: %s', filePath);
+                warning('File %s does not exist.', filePath);
             end
         end
 
-        % Labels and titles
         xlabel(ax1, 'Radial Position', 'FontSize', baseFontSize * fontSizeMultiplier);
         ylabel(ax1, fileNames{f}(1:end-4), 'FontSize', baseFontSize * fontSizeMultiplier);
-        title(ax1, sprintf('%s - %s', material, fileNames{f}(1:end-4)), 'FontSize', baseFontSize * fontSizeMultiplier);
+        title(ax1, sprintf('%s - %s', refrigerant, fileNames{f}(1:end-4)), ...
+            'FontSize', baseFontSize * fontSizeMultiplier);
         legend(ax1, 'show', 'Location', 'best', 'FontSize', baseFontSize * fontSizeMultiplier);
         grid(ax1, 'on'); set(ax1, 'LineWidth', 1.5);
 
@@ -68,46 +76,45 @@ for m = 1:length(materialFolders)
         xlim(ax2, [0 0.2]);
         grid(ax2, 'on'); set(ax2, 'LineWidth', 1.5);
 
-        % Save
-        outName = sprintf('%s_%s.emf', material, fileNames{f}(1:end-4));
-        save_plot_as_png(fig, fullfile(saveFolder, outName));
+        % Save plot
+        saveName = sprintf('%s_%s.emf', refrigerant, fileNames{f}(1:end-4));
+        save_plot_as_png(fig, fullfile(saveFolder, saveName));
     end
 end
 
-% ========== PLOT 2: Per E - Varying Material ==========
-% For only VF45.csv and VF90.csv
-vfFiles = {'VF45.csv', 'VF90.csv'};
+% ---------- Second: Plot across refrigerants at fixed E-value ----------
+colors = lines(length(refrigerants)); % for refrigerants
 
-for vf = 1:length(vfFiles)
-    for e = 1:length(subfolders)
+for f = 1:length(fileNames)
+    for i = 1:length(subfolders)
         fig = figure('Position', [100, 100, 1600, 800]);
         ax1 = axes('Position', [0.08, 0.15, 0.6, 0.75]); hold(ax1, 'on');
         ax2 = axes('Position', [0.72, 0.15, 0.25, 0.75]); hold(ax2, 'on');
 
-        for m = 1:length(materialFolders)
-            material = materialFolders{m};
-            folderPath = fullfile(material, subfolders{e});
-            filePath = fullfile(folderPath, vfFiles{vf});
+        for r = 1:length(refrigerants)
+            folderPath = fullfile(baseFolder, refrigerants{r}, subfolders{i});
+            filePath = fullfile(folderPath, fileNames{f});
+
             if exist(filePath, 'file') == 2
                 data = read_data(filePath);
                 x = data(:, 1) / 100;
                 y = data(:, 2);
 
-                plot(ax1, x, y, 'DisplayName', material, ...
-                    'LineWidth', 2.5, 'Color', colors(m, :), ...
-                    'LineStyle', lineStyles{m}, 'Marker', markers{m});
+                plot(ax1, x, y, 'DisplayName', refrigerants{r}, ...
+                    'LineWidth', 2.5, 'Color', colors(r, :), ...
+                    'LineStyle', lineStyles{r}, 'Marker', markers{r});
                 plot(ax2, x, y, ...
-                    'LineWidth', 2.5, 'Color', colors(m, :), ...
-                    'LineStyle', lineStyles{m}, 'Marker', markers{m});
+                    'LineWidth', 2.5, 'Color', colors(r, :), ...
+                    'LineStyle', lineStyles{r}, 'Marker', markers{r});
             else
-                warning('File not found: %s', filePath);
+                warning('File %s does not exist.', filePath);
             end
         end
 
         xlabel(ax1, 'Radial Position', 'FontSize', baseFontSize * fontSizeMultiplier);
-        ylabel(ax1, vfFiles{vf}(1:end-4), 'FontSize', baseFontSize * fontSizeMultiplier);
-        title(ax1, sprintf('E = %.1f - %s (All Materials)', str2double(subfolders{e}(5:end)), vfFiles{vf}(1:end-4)), ...
-              'FontSize', baseFontSize * fontSizeMultiplier);
+        ylabel(ax1, fileNames{f}(1:end-4), 'FontSize', baseFontSize * fontSizeMultiplier);
+        title(ax1, sprintf('%s - %s', subfolders{i}, fileNames{f}(1:end-4)), ...
+            'FontSize', baseFontSize * fontSizeMultiplier);
         legend(ax1, 'show', 'Location', 'best', 'FontSize', baseFontSize * fontSizeMultiplier);
         grid(ax1, 'on'); set(ax1, 'LineWidth', 1.5);
 
@@ -116,13 +123,13 @@ for vf = 1:length(vfFiles)
         xlim(ax2, [0 0.2]);
         grid(ax2, 'on'); set(ax2, 'LineWidth', 1.5);
 
-        outName = sprintf('AllMaterials_E%.1f_%s.emf', str2double(subfolders{e}(5:end)), vfFiles{vf}(1:end-4));
-        save_plot_as_png(fig, fullfile(saveFolder, outName));
+        % Save plot
+        saveName = sprintf('%s_%s_CompareRefrigerants.emf', subfolders{i}, fileNames{f}(1:end-4));
+        save_plot_as_png(fig, fullfile(saveFolder, saveName));
     end
 end
 
-% ---------- Helper Functions ---------- %
-
+% ---------- Helper Functions ----------
 function save_plot_as_png(figHandle, filePath)
     exportgraphics(figHandle, filePath, 'Resolution', 300);
 end
